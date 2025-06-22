@@ -1,0 +1,7 @@
+torch>=2.1
+transformers>=4.36
+datasets>=2.16
+xformers>=0.0.23
+accelerate>=0.24
+rich>=13.7
+tqdm>=4.66 
