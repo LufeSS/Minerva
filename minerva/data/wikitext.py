@@ -31,14 +31,27 @@ def load_wikitext(
     split: str = "train",
     tokenizer_name: str = "gpt2",
     block_size: int = 128,
+    dataset_variant: str = "wikitext-2-raw-v1",
 ) -> Tuple[torch.utils.data.Dataset, int, "transformers.PreTrainedTokenizerBase"]:
-    """Load WikiText subset and return HF dataset in PyTorch format plus vocab size."""
+    """Load WikiText subset (2 or 103) and return HF dataset in PyTorch format.
+
+    Parameters
+    ----------
+    split: str
+        One of "train", "validation", "test".
+    tokenizer_name: str
+        Name or path of a HF tokenizer (defaults to GPT-2).
+    block_size: int
+        Length of each training chunk after grouping.
+    dataset_variant: str
+        Either "wikitext-2-raw-v1" (default) or "wikitext-103-raw-v1".
+    """
 
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split=split)
+    dataset = load_dataset("wikitext", dataset_variant, split=split)
 
     tokenize_fn = lambda x: _tokenize_function(x, tokenizer, block_size)
     tokenized = dataset.map(tokenize_fn, batched=True, remove_columns=["text"])

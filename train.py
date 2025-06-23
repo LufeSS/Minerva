@@ -24,6 +24,7 @@ def parse_args():
     p.add_argument("--num_heads", type=int, default=8)
     p.add_argument("--dropout", type=float, default=0.1)
     p.add_argument("--expansion", type=int, default=4)
+    p.add_argument("--dataset", type=str, default="wikitext-2-raw-v1", choices=["wikitext-2-raw-v1", "wikitext-103-raw-v1"], help="Which WikiText variant to use")
     p.add_argument("--checkpoint_dir", type=str, default="checkpoints")
     return p.parse_args()
 
@@ -37,8 +38,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     console.print(f"[bold]Loading dataset[/bold] (seq_len={args.seq_len})…")
-    train_ds, vocab_size, tokenizer = load_wikitext("train", block_size=args.seq_len)
-    val_ds, _, _ = load_wikitext("validation", block_size=args.seq_len)
+    train_ds, vocab_size, tokenizer = load_wikitext("train", block_size=args.seq_len, dataset_variant=args.dataset)
+    val_ds, _, _ = load_wikitext("validation", block_size=args.seq_len, dataset_variant=args.dataset)
 
     train_loader = build_dataloader(train_ds, args.batch_size, shuffle=True)
     val_loader = build_dataloader(val_ds, args.batch_size, shuffle=False)
