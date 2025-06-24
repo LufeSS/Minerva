@@ -85,18 +85,19 @@ def main():
             targets = input_ids.clone()
             inp, tgt = shift_labels(targets)
 
-            # Cross-entropy averaged over tokens in the micro-batch
-            ce_loss = F.cross_entropy(
-                model(inp).view(-1, vocab_size), tgt.view(-1)
+            # Cross-entropy with reduction='sum' gives total NLL for the batch
+            ce_loss_sum = F.cross_entropy(
+                model(inp).view(-1, vocab_size), tgt.view(-1), reduction="sum"
             )
 
-            # Metric bookkeeping (sum over tokens)
+            # Metric bookkeeping
             tokens_in_batch = tgt.numel()
-            running_nll += ce_loss.item() * tokens_in_batch
+            running_nll += ce_loss_sum.item()
             total_tokens += tokens_in_batch
 
-            # Scale loss for gradient accumulation
-            (ce_loss / args.grad_accum).backward()
+            # Average loss per token for the backward pass
+            avg_loss = ce_loss_sum / tokens_in_batch
+            (avg_loss / args.grad_accum).backward()
 
             if (step_in_epoch + 1) % args.grad_accum == 0:
                 optimizer.step()
@@ -117,12 +118,11 @@ def main():
                 input_ids = batch["input_ids"].to(device)
                 inp, tgt = shift_labels(input_ids)
                 logits = model(inp)
-                loss = F.cross_entropy(
-                    logits.view(-1, vocab_size), tgt.view(-1)
+                loss_sum = F.cross_entropy(
+                    logits.view(-1, vocab_size), tgt.view(-1), reduction="sum"
                 )
-                tok = tgt.numel()
-                val_nll += loss.item() * tok
-                val_tokens += tok
+                val_nll += loss_sum.item()
+                val_tokens += tgt.numel()
 
         avg_val_loss = val_nll / val_tokens
         val_ppl = math.exp(avg_val_loss)
