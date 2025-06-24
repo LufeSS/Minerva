@@ -53,6 +53,11 @@ def main():
         dropout=args.dropout,
     ).to(device)
 
+    # NUEVO ↓↓↓  (usa todas las GPUs visibles)
+    if torch.cuda.device_count() > 1:
+        console.print(f"Usando {torch.cuda.device_count()} GPUs con DataParallel")
+        model = torch.nn.DataParallel(model)
+
     optimizer = AdamW(model.parameters(), lr=args.lr)
 
     ckpt_dir = Path(args.checkpoint_dir)
