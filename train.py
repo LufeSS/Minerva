@@ -97,7 +97,8 @@ def main():
             running_loss += loss.item() * args.grad_accum  # de-scale
             step_in_epoch += 1
 
-        train_ppl = math.exp(running_loss / len(train_loader))
+        effective_batches = len(train_loader) // args.grad_accum
+        train_ppl = math.exp(running_loss / effective_batches)
 
         # ---------- validation ----------
         model.eval()
