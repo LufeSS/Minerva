@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch.optim import AdamW
 from tqdm import tqdm
 from rich.console import Console
+from transformers import get_linear_schedule_with_warmup
 
 from minerva.model import Decoder
 from minerva.data.wikitext import load_wikitext, build_dataloader
@@ -24,6 +25,8 @@ def parse_args():
     p.add_argument("--num_heads", type=int, default=8)
     p.add_argument("--dropout", type=float, default=0.1)
     p.add_argument("--expansion", type=int, default=4)
+    p.add_argument("--grad_accum", type=int, default=1, help="Gradient accumulation steps")
+    p.add_argument("--warmup_ratio", type=float, default=0.1, help="Fraction of total steps used for LR warm-up")
     p.add_argument("--dataset", type=str, default="wikitext-2-raw-v1", choices=["wikitext-2-raw-v1", "wikitext-103-raw-v1"], help="Which WikiText variant to use")
     p.add_argument("--checkpoint_dir", type=str, default="checkpoints")
     return p.parse_args()
@@ -60,6 +63,13 @@ def main():
 
     optimizer = AdamW(model.parameters(), lr=args.lr)
 
+    # ----- scheduler (warm-up + linear decay) -----
+    total_update_steps = (len(train_loader) * args.epochs) // args.grad_accum
+    warmup_steps = int(total_update_steps * args.warmup_ratio)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_update_steps
+    )
+
     ckpt_dir = Path(args.checkpoint_dir)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
@@ -67,6 +77,7 @@ def main():
         # ---------- train ----------
         model.train()
         running_loss = 0.0
+        step_in_epoch = 0
         for batch in tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}"):
             input_ids = batch["input_ids"].to(device)
             targets = input_ids.clone()
@@ -75,11 +86,16 @@ def main():
             loss = F.cross_entropy(
                 logits.view(-1, vocab_size), tgt.view(-1)
             )
-            optimizer.zero_grad()
+            loss = loss / args.grad_accum  # normalise
             loss.backward()
-            optimizer.step()
 
-            running_loss += loss.item()
+            if (step_in_epoch + 1) % args.grad_accum == 0:
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad(set_to_none=True)
+
+            running_loss += loss.item() * args.grad_accum  # de-scale
+            step_in_epoch += 1
 
         train_ppl = math.exp(running_loss / len(train_loader))
 
