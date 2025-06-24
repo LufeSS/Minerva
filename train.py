@@ -76,33 +76,42 @@ def main():
     for epoch in range(1, args.epochs + 1):
         # ---------- train ----------
         model.train()
-        running_loss = 0.0
+        running_nll = 0.0  # accumulated negative log-likelihood (sum over tokens)
+        total_tokens = 0    # number of tokens processed
         step_in_epoch = 0
+
         for batch in tqdm(train_loader, desc=f"Epoch {epoch}/{args.epochs}"):
             input_ids = batch["input_ids"].to(device)
             targets = input_ids.clone()
             inp, tgt = shift_labels(targets)
-            logits = model(inp)
-            loss = F.cross_entropy(
-                logits.view(-1, vocab_size), tgt.view(-1)
+
+            # Cross-entropy averaged over tokens in the micro-batch
+            ce_loss = F.cross_entropy(
+                model(inp).view(-1, vocab_size), tgt.view(-1)
             )
-            loss = loss / args.grad_accum  # normalise
-            loss.backward()
+
+            # Metric bookkeeping (sum over tokens)
+            tokens_in_batch = tgt.numel()
+            running_nll += ce_loss.item() * tokens_in_batch
+            total_tokens += tokens_in_batch
+
+            # Scale loss for gradient accumulation
+            (ce_loss / args.grad_accum).backward()
 
             if (step_in_epoch + 1) % args.grad_accum == 0:
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
 
-            running_loss += loss.item() * args.grad_accum  # de-scale
             step_in_epoch += 1
 
-        effective_batches = len(train_loader) // args.grad_accum
-        train_ppl = math.exp(running_loss / effective_batches)
+        avg_train_loss = running_nll / total_tokens
+        train_ppl = math.exp(avg_train_loss)
 
         # ---------- validation ----------
         model.eval()
-        val_loss = 0.0
+        val_nll = 0.0
+        val_tokens = 0
         with torch.no_grad():
             for batch in val_loader:
                 input_ids = batch["input_ids"].to(device)
@@ -111,8 +120,12 @@ def main():
                 loss = F.cross_entropy(
                     logits.view(-1, vocab_size), tgt.view(-1)
                 )
-                val_loss += loss.item()
-        val_ppl = math.exp(val_loss / len(val_loader))
+                tok = tgt.numel()
+                val_nll += loss.item() * tok
+                val_tokens += tok
+
+        avg_val_loss = val_nll / val_tokens
+        val_ppl = math.exp(avg_val_loss)
         console.print(
             f"[green]Epoch {epoch}: train ppl {train_ppl:.2f}, val ppl {val_ppl:.2f}[/green]"
         )
