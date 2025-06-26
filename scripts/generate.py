@@ -91,17 +91,28 @@ def main(
     for _ in range(max_new_tokens):
         with torch.no_grad():
             logits = model(generated[:, -seq_len:])  # ensure within trained context
-        next_logits = logits[:, -1, :] / temperature
-        # nucleus sampling
-        sorted_logits, sorted_indices = torch.sort(next_logits, descending=True)
-        cumulative_probs = torch.softmax(sorted_logits, dim=-1).cumsum(dim=-1)
-        keep = cumulative_probs <= top_p
-        # ensure at least 1 token retained
-        keep[..., 0] = True
-        masked_logits = torch.full_like(next_logits, float("-inf"))
-        masked_logits.scatter_(1, sorted_indices[keep], next_logits[sorted_indices[keep]])
-        probs = torch.softmax(masked_logits, dim=-1)
-        next_token = torch.multinomial(probs, num_samples=1)
+        next_logits = logits[:, -1, :] / temperature  # (1, V)
+
+        # ------------- nucleus (top-p) filtering ------------- #
+        if top_p < 1.0:
+            probs = torch.softmax(next_logits, dim=-1)  # (1, V)
+            sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+            cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+
+            # Mask tokens with cumulative prob above top_p
+            sorted_indices_to_remove = cumulative_probs > top_p
+            # Ensure at least one token is kept
+            sorted_indices_to_remove[..., 0] = False
+
+            # Create a copy so we don't modify probs in-place before sampling
+            filtered_probs = probs.clone()
+            filtered_probs.scatter_(1, sorted_indices[sorted_indices_to_remove], 0.0)
+            filtered_probs = filtered_probs / filtered_probs.sum(dim=-1, keepdim=True)
+            next_token = torch.multinomial(filtered_probs, num_samples=1)
+        else:
+            # Pure temperature sampling
+            probs = torch.softmax(next_logits, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1)
         generated = torch.cat([generated, next_token], dim=1)
 
     console.rule("[bold green]Generated text")
