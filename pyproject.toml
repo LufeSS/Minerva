@@ -31,10 +31,10 @@ Homepage = "https://github.com/your-username/minerva-refactored"
 "Bug Tracker" = "https://github.com/your-username/minerva-refactored/issues"
 
 [tool.setuptools]
-package-dir = {"" = "minerva_refactor/src"}
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["minerva_refactor/src"]
+where = ["src"]
 
 [tool.black]
 line-length = 88
@@ -45,7 +45,7 @@ include = '\\.pyi?$'
 line-length = 88
 select = ["E", "W", "F", "I", "UP", "C4", "B", "A", "YTT"]
 ignore = ["E501"]
-src = ["minerva_refactor/src"]
+src = ["src"]
 
 [tool.mypy]
 python_version = "3.8"
