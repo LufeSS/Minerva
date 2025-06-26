@@ -7,7 +7,7 @@ from typing import Optional
 import torch
 import typer
 from rich.console import Console
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, top_k_top_p_filtering
 
 from minerva.model import Decoder
 
@@ -94,24 +94,9 @@ def main(
         next_logits = logits[:, -1, :] / temperature  # (1, V)
 
         # ------------- nucleus (top-p) filtering ------------- #
-        if top_p < 1.0:
-            sorted_probs, sorted_indices = torch.sort(next_logits, descending=True)
-            cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
-
-            # Mask tokens with cumulative prob above top_p
-            sorted_indices_to_remove = cumulative_probs > top_p
-            # Ensure at least one token is kept
-            sorted_indices_to_remove[..., 0] = False
-
-            # Mask logits corresponding to indices to remove
-            next_logits_masked = next_logits.clone()
-            next_logits_masked[sorted_indices[sorted_indices_to_remove]] = -float("inf")
-            probs = torch.softmax(next_logits_masked, dim=-1)
-            next_token = torch.multinomial(probs, num_samples=1)
-        else:
-            # Pure temperature sampling
-            probs = torch.softmax(next_logits, dim=-1)
-            next_token = torch.multinomial(probs, num_samples=1)
+        filtered_logits = top_k_top_p_filtering(next_logits, top_k=0, top_p=top_p)
+        probs = torch.softmax(filtered_logits, dim=-1)
+        next_token = torch.multinomial(probs, num_samples=1)
         generated = torch.cat([generated, next_token], dim=1)
 
     console.rule("[bold green]Generated text")
