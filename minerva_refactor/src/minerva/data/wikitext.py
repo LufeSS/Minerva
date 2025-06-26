@@ -63,10 +63,15 @@ def load_wikitext(
     return grouped, tokenizer.vocab_size, tokenizer
 
 
-def build_dataloader(dataset, batch_size: int, shuffle: bool = True):
-    def collate_fn(batch):
+def build_dataloader(
+    dataset: torch.utils.data.Dataset, *, batch_size: int, shuffle: bool = True
+) -> DataLoader:
+    """Return a PyTorch ``DataLoader`` with simple stacking collate_fn."""
+
+    def collate_fn(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
         input_ids = torch.stack([item["input_ids"] for item in batch])
-        # We use labels inside training loop by shifting, but keep here
         return {"input_ids": input_ids}
 
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn) 
+    return DataLoader(
+        dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn
+    ) 

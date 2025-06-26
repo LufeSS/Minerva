@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minerva-refactored"
+version = "0.1.0"
+authors = [ { name = "Your Name", email = "you@example.com" } ]
+description = "Refactored Minerva project (root package)"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "torch>=2.1",
+    "transformers>=4.36",
+    "datasets>=2.16",
+    "xformers>=0.0.23",
+    "accelerate>=0.24",
+    "rich>=13.7",
+    "tqdm>=4.66",
+    "typer[all]>=0.9.0",
+    "pydantic-settings>=2.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-username/minerva-refactored"
+"Bug Tracker" = "https://github.com/your-username/minerva-refactored/issues"
+
+[tool.setuptools]
+package-dir = {"" = "minerva_refactor/src"}
+
+[tool.setuptools.packages.find]
+where = ["minerva_refactor/src"]
+
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+include = '\\.pyi?$'
+
+[tool.ruff]
+line-length = 88
+select = ["E", "W", "F", "I", "UP", "C4", "B", "A", "YTT"]
+ignore = ["E501"]
+src = ["minerva_refactor/src"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+pretty = true
+exclude = ["scripts/"] 

@@ -4,7 +4,6 @@ from ..modules import (
     CausalSelfAttention,
     HighwayResidual,
     SwiGLU,
-    ReZeroResidual,
 )
 
 
@@ -30,7 +29,6 @@ class DecoderLayer(nn.Module):
 
         self.norm2 = nn.LayerNorm(hidden_dim)
         self.ffn = SwiGLU(hidden_dim, expansion, dropout)
-        self.rezero = ReZeroResidual()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Self-attention + highway residual
@@ -39,5 +37,5 @@ class DecoderLayer(nn.Module):
 
         # Feed-forward + ReZero residual
         h_ffn = self.ffn(self.norm2(x))
-        x = self.rezero(x, h_ffn)
+        x = x + h_ffn  # standard residual
         return x 

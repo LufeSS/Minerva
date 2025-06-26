@@ -34,6 +34,13 @@ class Decoder(nn.Module):
         )
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
+        # Pre-compute and cache positional encodings up to ``max_seq_len`` on CPU.
+        self.register_buffer(
+            "pos_emb_cache",
+            self._positional_encoding(max_seq_len, device=torch.device("cpu")),
+            persistent=False,
+        )
+
         # Stack of decoder layers
         self.layers = nn.ModuleList(
             [
@@ -48,10 +55,22 @@ class Decoder(nn.Module):
         self.lm_head.weight = self.token_emb.weight  # weight tying
 
     def _positional_encoding(self, seq_len: int, device: torch.device):
+        """Compute sinusoidal positional embeddings on the given *device*."""
         t = torch.arange(seq_len, device=device, dtype=torch.float32)
-        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-        pos_emb = torch.cat([freqs.sin(), freqs.cos()], dim=-1)
-        return pos_emb
+        freqs = torch.einsum("i,j->ij", t, self.inv_freq.to(device))
+        return torch.cat([freqs.sin(), freqs.cos()], dim=-1)
+
+    def _get_positional_slice(self, seq_len: int, device: torch.device) -> torch.Tensor:
+        """Return positional embeddings of length *seq_len* on *device*.
+
+        Extends the cached tensor if a longer sequence is requested during
+        fine-tuning/inference.
+        """
+        if seq_len > self.pos_emb_cache.size(0):
+            # Extend cache lazily on CPU then reuse.
+            extra = self._positional_encoding(seq_len - self.pos_emb_cache.size(0), device=torch.device("cpu"))
+            self.pos_emb_cache = torch.cat([self.pos_emb_cache, extra], dim=0)
+        return self.pos_emb_cache[:seq_len].to(device)
 
     def forward(
         self, input_ids: torch.Tensor, *, past_kv: Optional[None] = None
@@ -65,7 +84,8 @@ class Decoder(nn.Module):
         device = input_ids.device
         batch, seq_len = input_ids.shape
 
-        x = self.token_emb(input_ids) + self._positional_encoding(seq_len, device)[None, :, :]
+        pos_emb = self._get_positional_slice(seq_len, device)
+        x = self.token_emb(input_ids) + pos_emb.unsqueeze(0)
         x = x.to(self.token_emb.weight.dtype)
 
         for layer in self.layers:
