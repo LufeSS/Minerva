@@ -95,8 +95,7 @@ def main(
 
         # ------------- nucleus (top-p) filtering ------------- #
         if top_p < 1.0:
-            probs = torch.softmax(next_logits, dim=-1)  # (1, V)
-            sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+            sorted_probs, sorted_indices = torch.sort(next_logits, descending=True)
             cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
 
             # Mask tokens with cumulative prob above top_p
@@ -104,11 +103,11 @@ def main(
             # Ensure at least one token is kept
             sorted_indices_to_remove[..., 0] = False
 
-            # Create a copy so we don't modify probs in-place before sampling
-            filtered_probs = probs.clone()
-            filtered_probs.scatter_(1, sorted_indices[sorted_indices_to_remove], 0.0)
-            filtered_probs = filtered_probs / filtered_probs.sum(dim=-1, keepdim=True)
-            next_token = torch.multinomial(filtered_probs, num_samples=1)
+            # Mask logits corresponding to indices to remove
+            next_logits_masked = next_logits.clone()
+            next_logits_masked[sorted_indices[sorted_indices_to_remove]] = -float("inf")
+            probs = torch.softmax(next_logits_masked, dim=-1)
+            next_token = torch.multinomial(probs, num_samples=1)
         else:
             # Pure temperature sampling
             probs = torch.softmax(next_logits, dim=-1)
