@@ -96,7 +96,7 @@ class manually or swap the import path.
 1. **Pre-train distillation** using [Llama-405B logits](https://huggingface.co/datasets/arcee-ai/LLama-405B-Logits).
 2. **Fine-tune distillation** from:
    * Llama-2 70B-Instruct (STEM subset)
-   * Llama-3 8B (coding subset)
+   * Llama-3.2 3B (coding subset)
    * Tool: [Logits-Based-Finetuning](https://github.com/dvlab-research/Logits-Based-Finetuning)
 3. Target a **1-3 B parameter model** that *fits into a single T4* for both training and inference.
 4. Explore hyper-parameter tuning, SF-SWA checkpoints, and quantisation.
